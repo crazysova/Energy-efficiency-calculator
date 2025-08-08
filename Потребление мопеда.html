@@ -1,0 +1,204 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Калькулятор потребления энергии электромопедом</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        .slider-container {
+            margin-bottom: 20px;
+        }
+        .slider-label {
+            display: flex;
+            justify-content: space-between;
+        }
+        input[type="range"] {
+            width: 100%;
+        }
+        #chart-container {
+            margin-top: 30px;
+        }
+        .info {
+            margin-top: 20px;
+            padding: 10px;
+            background-color: #f0f0f0;
+            border-radius: 5px;
+        }
+    </style>
+</head>
+<body>
+    <h1>Калькулятор потребления энергии электромопедом</h1>
+    
+    <div class="slider-container">
+        <div class="slider-label">
+            <label for="speed">Скорость (км/ч):</label>
+            <span id="speed-value">25</span>
+        </div>
+        <input type="range" id="speed" min="10" max="80" value="25" step="1">
+    </div>
+    
+    <div class="slider-container">
+        <div class="slider-label">
+            <label for="distance">Пробег (км):</label>
+            <span id="distance-value">50</span>
+        </div>
+        <input type="range" id="distance" min="10" max="200" value="50" step="1">
+    </div>
+    
+    <div class="slider-container">
+        <div class="slider-label">
+            <label for="battery">Ёмкость АКБ (Вт·ч):</label>
+            <span id="battery-value">500</span>
+        </div>
+        <input type="range" id="battery" min="100" max="2000" value="500" step="50">
+    </div>
+    
+    <div id="chart-container">
+        <canvas id="consumptionChart"></canvas>
+    </div>
+    
+    <div class="info">
+        <h3>Информация:</h3>
+        <p id="consumption-info">Потребление при 25 км/ч: 500 Вт</p>
+        <p id="range-info">Запас хода: 50 км</p>
+        <p id="battery-cost-info">Стоимость АКБ: 300 руб за 5Ач 3.7В (18.5 Вт·ч)</p>
+        <p id="total-cost-info">Примерная стоимость АКБ для выбранной ёмкости: 8108 руб</p>
+    </div>
+
+    <script>
+        // Инициализация графика
+        const ctx = document.getElementById('consumptionChart').getContext('2d');
+        let consumptionChart = new Chart(ctx, {
+            type: 'line',
+            data: {
+                labels: [],
+                datasets: [{
+                    label: 'Потребление энергии (Вт)',
+                    data: [],
+                    borderColor: 'rgb(75, 192, 192)',
+                    tension: 0.1,
+                    fill: false
+                }, {
+                    label: 'Запас хода (км)',
+                    data: [],
+                    borderColor: 'rgb(255, 99, 132)',
+                    tension: 0.1,
+                    fill: false,
+                    yAxisID: 'y1'
+                }]
+            },
+            options: {
+                responsive: true,
+                interaction: {
+                    mode: 'index',
+                    intersect: false,
+                },
+                scales: {
+                    y: {
+                        type: 'linear',
+                        display: true,
+                        position: 'left',
+                        title: {
+                            display: true,
+                            text: 'Потребление (Вт)'
+                        }
+                    },
+                    y1: {
+                        type: 'linear',
+                        display: true,
+                        position: 'right',
+                        title: {
+                            display: true,
+                            text: 'Запас хода (км)'
+                        },
+                        grid: {
+                            drawOnChartArea: false
+                        }
+                    },
+                    x: {
+                        title: {
+                            display: true,
+                            text: 'Скорость (км/ч)'
+                        }
+                    }
+                }
+            }
+        });
+
+        // Функция для расчета потребления энергии в зависимости от скорости
+        function calculatePowerConsumption(speed) {
+            // Используем квадратичную зависимость потребления от скорости
+            // При 25 км/ч - 500 Вт, при 75 км/ч - 5000 Вт
+            const a = (5000 - 500) / (75*75 - 25*25);
+            const b = 500 - a * 25*25;
+            return a * speed * speed + b;
+        }
+
+        // Функция для обновления графика и информации
+        function updateChart() {
+            const speed = parseInt(document.getElementById('speed').value);
+            const distance = parseInt(document.getElementById('distance').value);
+            const batteryCapacity = parseInt(document.getElementById('battery').value);
+            
+            // Обновляем значения на слайдерах
+            document.getElementById('speed-value').textContent = speed;
+            document.getElementById('distance-value').textContent = distance;
+            document.getElementById('battery-value').textContent = batteryCapacity;
+            
+            // Генерируем данные для графика (диапазон скоростей от 10 до 80 км/ч)
+            const speeds = [];
+            const consumptions = [];
+            const ranges = [];
+            
+            for (let s = 10; s <= 80; s += 5) {
+                speeds.push(s);
+                const consumption = calculatePowerConsumption(s);
+                consumptions.push(consumption);
+                ranges.push(batteryCapacity / consumption * s);
+            }
+            
+            // Обновляем данные графика
+            consumptionChart.data.labels = speeds;
+            consumptionChart.data.datasets[0].data = consumptions;
+            consumptionChart.data.datasets[1].data = ranges;
+            consumptionChart.update();
+            
+            // Рассчитываем текущее потребление и запас хода
+            const currentConsumption = calculatePowerConsumption(speed);
+            const currentRange = batteryCapacity / currentConsumption * speed;
+            
+            // Обновляем информацию
+            document.getElementById('consumption-info').textContent = 
+                `Потребление при ${speed} км/ч: ${Math.round(currentConsumption)} Вт`;
+            
+            document.getElementById('range-info').textContent = 
+                `Запас хода: ${Math.round(currentRange)} км`;
+            
+            // Расчет стоимости АКБ (300 руб за 5Ач 3.7В = 18.5 Вт·ч)
+            const costPerWh = 300 / 18.5;
+            const totalCost = Math.round(batteryCapacity * costPerWh);
+            
+            document.getElementById('battery-cost-info').textContent = 
+                `Стоимость АКБ: 300 руб за 5Ач 3.7В (18.5 Вт·ч)`;
+            
+            document.getElementById('total-cost-info').textContent = 
+                `Примерная стоимость АКБ для выбранной ёмкости: ${totalCost} руб`;
+        }
+
+        // Назначаем обработчики событий для ползунков
+        document.getElementById('speed').addEventListener('input', updateChart);
+        document.getElementById('distance').addEventListener('input', updateChart);
+        document.getElementById('battery').addEventListener('input', updateChart);
+
+        // Инициализация при загрузке
+        window.addEventListener('load', updateChart);
+    </script>
+</body>
+</html>
